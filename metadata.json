@@ -1,0 +1,6 @@
+{
+  "name": "Xiaomi People-Car-Home Ecosystem",
+  "description": "Xiaomi SU7 1:1 cockpit restoration with real-time AI smart voice assistant 'Xiao AI' and full people-car-home ecosystem integration.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}
