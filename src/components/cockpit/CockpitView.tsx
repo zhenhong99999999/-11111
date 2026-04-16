@@ -22,15 +22,19 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
   const [lastAiResponse, setLastAiResponse] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
 
   const audioStreamer = useRef<AudioStreamer | null>(null);
   const audioRecorder = useRef<AudioRecorder | null>(null);
   const sessionRef = useRef<any>(null);
 
-  // Update time
+  // Cleanup on unmount
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      sessionRef.current?.close();
+      audioStreamer.current?.stop();
+      audioRecorder.current?.stop();
+    };
   }, []);
 
   // Simulate speed in driving mode
@@ -161,16 +165,36 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden z-[100] flex flex-col font-sans">
-      {/* Background & Ambience */}
+      {/* Background & Ambience - Hybrid Video/Image Engine */}
       <div className="absolute inset-0 z-0 select-none pointer-events-none">
         {/* Under windshield view - simulates the road ahead */}
         <div className="absolute inset-0 transition-opacity duration-1000">
+          <AnimatePresence>
+            {isDriving && (
+              <motion.video 
+                key="driving-video"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: isVideoLoaded ? 1 : 0 }}
+                exit={{ opacity: 0 }}
+                autoPlay 
+                loop 
+                muted 
+                playsInline
+                onLoadedData={() => setIsVideoLoaded(true)}
+                className="w-full h-full object-cover brightness-[0.5] saturate-[1.2] blur-[1px]"
+                poster="https://r.jina.ai/i/05e0ae7ecb6540d9994c9f13e1107c13"
+              >
+                <source src="https://player.vimeo.com/external/494252666.hd.mp4?s=d944e05445203f5f3e990c8684a0d90892c575a7&profile_id=175" type="video/mp4" />
+              </motion.video>
+            )}
+          </AnimatePresence>
+          
           <img 
             src="https://r.jina.ai/i/05e0ae7ecb6540d9994c9f13e1107c13" 
-            alt="Xiaomi SU7 Cockpit"
+            alt="Xiaomi SU7 Cockpit Interior"
             className={cn(
-              "w-full h-full object-cover transition-all duration-1000",
-              isDriving ? "scale-105 blur-[3px] brightness-[0.7] saturate-[0.8]" : "scale-101"
+              "absolute inset-0 w-full h-full object-cover transition-all duration-1000",
+              isDriving ? "opacity-30 scale-110" : "opacity-100 scale-101"
             )}
             referrerPolicy="no-referrer"
           />
@@ -178,26 +202,42 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
         
         {/* Horizon Road simulation - stretching highway lanes (abstract representation) */}
         {isDriving && (
-          <div className="absolute inset-0 overflow-hidden opacity-30">
+          <div className="absolute inset-0 overflow-hidden opacity-40">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-[200%] h-full flex justify-center">
-              <div className="w-[1px] h-full bg-gradient-to-t from-white/0 via-white/20 to-white/0 -rotate-[85deg] origin-top translate-x-40" />
-              <div className="w-[1px] h-full bg-gradient-to-t from-white/0 via-white/20 to-white/0 rotate-[85deg] origin-top -translate-x-40" />
+              <motion.div 
+                animate={{ opacity: [0.1, 0.3, 0.1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="w-[1px] h-full bg-gradient-to-t from-white/0 via-white/40 to-white/0 -rotate-[85deg] origin-top translate-x-40" 
+              />
+              <motion.div 
+                animate={{ opacity: [0.1, 0.3, 0.1] }}
+                transition={{ duration: 2, repeat: Infinity, delay: 1 }}
+                className="w-[1px] h-full bg-gradient-to-t from-white/0 via-white/40 to-white/0 rotate-[85deg] origin-top -translate-x-40" 
+              />
             </div>
           </div>
         )}
 
         {/* Immersive Atmospheric Overlays */}
         <div className={cn(
-          "absolute inset-0 transition-opacity duration-1000 bg-gradient-to-b from-blue-900/10 via-transparent to-black/40",
+          "absolute inset-0 transition-opacity duration-1000 bg-gradient-to-b from-blue-900/20 via-transparent to-black/60",
           isDriving ? "opacity-100" : "opacity-0"
         )} />
         
         {/* Dashboard Reflection on Windshield */}
-        <div className="absolute top-[30%] inset-x-0 h-40 bg-gradient-to-t from-white/5 to-transparent blur-3xl pointer-events-none opacity-40" />
+        <div className="absolute top-[25%] inset-x-0 h-64 bg-gradient-to-t from-white/10 to-transparent blur-3xl pointer-events-none opacity-50" />
         
         {/* Xiaomi Orange Ambient Bleed */}
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-mi-orange/5 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-1/3 h-1/3 bg-mi-orange/5 blur-[120px]" />
+        <motion.div 
+          animate={isDriving ? { opacity: [0.05, 0.1, 0.05] } : {}}
+          transition={{ duration: 4, repeat: Infinity }}
+          className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-mi-orange/10 blur-[150px]" 
+        />
+        <motion.div 
+          animate={isDriving ? { opacity: [0.05, 0.1, 0.05] } : {}}
+          transition={{ duration: 4, repeat: Infinity, delay: 2 }}
+          className="absolute bottom-0 right-0 w-1/2 h-1/2 bg-mi-orange/10 blur-[150px]" 
+        />
       </div>
 
       {/* 1:1 Instrument Cluster (Behind Steering Wheel) */}
@@ -215,10 +255,13 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
          {/* Center: Gear */}
          <div className="w-8 h-8 flex items-center justify-center">
             <motion.div 
-              animate={isDriving ? { scale: [1, 1.05, 1] } : {}}
-              transition={{ duration: 2, repeat: Infinity }}
+              animate={isDriving ? { 
+                scale: [1, 1.05, 1],
+                color: ["#FFFFFF", "#FF6900", "#FFFFFF"]
+              } : {}}
+              transition={{ duration: 4, repeat: Infinity }}
               className={cn(
-                "text-[10px] font-black rounded flex items-center justify-center",
+                "text-[10px] font-black rounded flex items-center justify-center transition-colors duration-500",
                 isDriving ? "text-mi-orange" : "text-white"
               )}
             >
@@ -314,8 +357,15 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
       {/* Main Experience Layout - Optimized for Driving Sightlines */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-between pb-12 pt-16 px-6">
         
-        {/* HUD (Head-Up Display) / Eye-Level Sightline Area */}
-        <div className="flex-1 flex flex-col items-center justify-center -mt-24 select-none">
+          {/* HUD (Head-Up Display) / Eye-Level Sightline Area */}
+        <div className="flex-1 flex flex-col items-center justify-center -mt-24 select-none relative overflow-hidden">
+          {/* Cinematic Scan Line */}
+          <motion.div 
+            animate={{ y: ["-100%", "200%"] }}
+            transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: "linear" }}
+            className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent z-20 pointer-events-none"
+          />
+
           <motion.div 
             animate={isDriving ? { 
               y: [0, -2, 0],

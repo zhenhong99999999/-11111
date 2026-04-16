@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Play, Pause, RefreshCw, HelpCircle, MessageSquare, Sparkles, X, Home, Mic } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Play, Pause, RefreshCw, HelpCircle, MessageSquare, Sparkles, X, Home, Mic, Lock, Unlock } from 'lucide-react';
 import { XiaomiLogo } from '../common/XiaomiLogo';
 import { CockpitView } from '../cockpit/CockpitView';
 import { cn } from '../../lib/utils';
@@ -34,7 +34,8 @@ const steps = [
         { name: "扫地机", state: "回充中", active: false }
       ]
     },
-    aiInsight: "✨ 我为您规划了最快路线。同时，已提前开启家中热水器与空调预热，确保您到家即享舒适。"
+    aiInsight: "✨ 我为您规划了最快路线。同时，已提前开启家中热水器与空调预热，确保您到家即享舒适。",
+    userGuidance: "试试点击方向盘，开启自动巡航"
   },
   {
     step: 2,
@@ -59,7 +60,8 @@ const steps = [
         { name: "音箱", state: "准备播放", active: true }
       ]
     },
-    aiInsight: "✨ 检测到您距离家 3 公里范围内。基于您的习惯，家中已开启空气强力净化并开始预热咖啡机。"
+    aiInsight: "✨ 检测到您距离家 3 公里范围内。基于您的习惯，家中已开启空气强力净化并开始预热咖啡机。",
+    userGuidance: "观察手机：家居设备正实时响应"
   },
   {
     step: 3,
@@ -84,7 +86,8 @@ const steps = [
         { name: "窗帘", state: "准备中", active: true }
       ]
     },
-    aiInsight: "✨ 利用地理围栏技术，当车辆检测到入库，您的家门已通过安全认证自动为您解锁。"
+    aiInsight: "✨ 利用地理围栏技术，当车辆检测到入库，您的家门已通过安全认证自动为您解锁。",
+    userGuidance: "跟随画面，见证门锁自动开启"
   },
   {
     step: 4,
@@ -108,7 +111,8 @@ const steps = [
         { name: "扫地机", state: "已停止", active: true }
       ]
     },
-    aiInsight: "✨ 欢迎回家！此时此刻，灯光已调至您最爱的「暖阳」色调，电视正为您续播上次未看完的内容。"
+    aiInsight: "✨ 欢迎回家！此时此刻，灯光已调至您最爱的「暖阳」色调，电视正为您续播上次未看完的内容。",
+    userGuidance: "步入客厅，感受大师级灯光氛围"
   },
   {
     step: 5,
@@ -132,7 +136,8 @@ const steps = [
         { name: "联动总数", state: "12个设备", active: true }
       ]
     },
-    aiInsight: "✨ 小米「人车家全生态」现已将您的 10+ 通讯协议设备无缝连接。这不仅是智能，更是陪伴。"
+    aiInsight: "✨ 小米「人车家全生态」现已将您的 10+ 通讯协议设备无缝连接。这不仅是智能，更是陪伴。",
+    userGuidance: "点击「再看一次」重新体验全流程"
   }
 ];
 
@@ -333,6 +338,7 @@ export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
   const [showImmersiveCockpit, setShowImmersiveCockpit] = useState(false);
 
   const currentStep = steps[currentStepIdx];
+  const isDrivingStage = currentStepIdx < 3;
 
   const handleGeminiCall = async () => {
     if (!customScene.trim()) return;
@@ -394,8 +400,44 @@ export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
 
   return (
     <motion.div 
-      className="relative min-h-screen flex flex-col items-center py-12 px-4 overflow-hidden"
+      className="relative min-h-screen flex flex-col items-center py-12 px-4 overflow-hidden bg-black"
     >
+      {/* Cinematic Background Engine for experience flow */}
+      <div className="absolute inset-0 z-0">
+        <AnimatePresence mode="wait">
+          {isDrivingStage ? (
+            <motion.div 
+              key="driving-bg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0"
+            >
+              <video 
+                autoPlay 
+                loop 
+                muted 
+                playsInline
+                className="w-full h-full object-cover opacity-20 blur-[80px] brightness-[0.4] saturate-[1.5]"
+              >
+                <source src="https://player.vimeo.com/external/494252666.hd.mp4?s=d944e05445203f5f3e990c8684a0d90892c575a7&profile_id=175" type="video/mp4" />
+              </video>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="home-bg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111] to-mi-orange/5"
+            />
+          )}
+        </AnimatePresence>
+        
+        {/* Dynamic Light Blobs */}
+        <div className="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-blue-500/10 blur-[120px] rounded-full animate-float" />
+        <div className="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-mi-orange/10 blur-[120px] rounded-full animate-float" style={{ animationDelay: '2s' }} />
+      </div>
       {/* Header */}
       <div className="w-full max-w-7xl px-8 flex justify-between items-center z-20 mb-12">
         <div className="flex items-center gap-6">
@@ -668,10 +710,24 @@ export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
                    <motion.div 
                      initial={{ opacity: 0, y: 10 }} 
                      animate={{ opacity: 1, y: 0 }} 
-                     className="absolute -top-4 -right-8 apple-glass text-mi-orange text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-xl border-mi-orange/30"
+                     className="absolute -top-6 -right-10 apple-glass-light p-3 rounded-2xl flex flex-col items-center gap-1 border border-mi-orange/30 shadow-2xl backdrop-blur-xl"
                    >
-                     Unlocking
+                     <motion.div
+                       animate={{ 
+                         rotate: [0, -10, 0],
+                         scale: [1, 1.1, 1]
+                       }}
+                       transition={{ duration: 2, repeat: Infinity }}
+                     >
+                        <Unlock size={20} className="text-mi-orange" />
+                     </motion.div>
+                     <span className="text-[8px] text-mi-orange font-black uppercase tracking-[2px]">Unlocking</span>
                    </motion.div>
+                )}
+                {currentStepIdx < 2 && (
+                   <div className="absolute -top-4 -right-4 opacity-20">
+                      <Lock size={16} className="text-white" />
+                   </div>
                 )}
              </motion.div>
           </div>
@@ -774,6 +830,19 @@ export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
         >
           {currentStep.description}
         </motion.p>
+
+        {/* User Guidance Chip */}
+        <motion.div 
+          key={currentStepIdx + 'guidance'}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-mi-orange/10 border border-mi-orange/30 px-6 py-2 rounded-full flex items-center gap-3 backdrop-blur-md"
+        >
+          <div className="w-2 h-2 rounded-full bg-mi-orange animate-pulse" />
+          <span className="text-xs font-black text-mi-orange uppercase tracking-[2px]">
+            {(currentStep as any).userGuidance}
+          </span>
+        </motion.div>
 
         <div className="flex items-center gap-10 bg-[#161616]/80 backdrop-blur-xl px-10 py-4 rounded-full border border-white/10 shadow-2xl">
           <button 
