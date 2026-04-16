@@ -323,7 +323,7 @@ const VoiceAvatar: React.FC<{ active?: boolean }> = ({ active }) => {
 
 export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
-  const [isAutoPlay, setIsAutoPlay] = useState(true);
+  const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [customScene, setCustomScene] = useState('');
   const [isLoadingGemini, setIsLoadingGemini] = useState(false);
   const [apiResult, setApiResult] = useState<any>(null);
@@ -355,13 +355,18 @@ export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
 
   useEffect(() => {
     if (!isAutoPlay) return;
+    // Stop auto-play once we reach the 'Returning Home' related stages or if user is on the first step for a while
+    if (currentStepIdx >= 1) {
+      setIsAutoPlay(false);
+      return;
+    }
     const timer = setTimeout(() => {
       if (currentStepIdx < steps.length - 1) {
         setCurrentStepIdx(prev => prev + 1);
       } else {
         setIsAutoPlay(false);
       }
-    }, 10000);
+    }, 15000); // Increased time for first step
     return () => clearTimeout(timer);
   }, [currentStepIdx, isAutoPlay]);
 
@@ -459,20 +464,28 @@ export const ExperienceView: React.FC<ExperienceViewProps> = ({ onBack }) => {
           animate={{ opacity: currentStepIdx >= 3 ? 0.3 : 1, x: 0 }}
           onClick={toggleBlink}
         >
-          {/* Overlay Button for Immersive Experience */}
+          {/* Prominent Button for Immersive Experience - Always visible for focus */}
           {currentStepIdx < 3 && (
-            <motion.button
-              whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 105, 0, 0.9)' }}
-              whileTap={{ scale: 0.95 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowImmersiveCockpit(true);
-              }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-mi-orange text-white px-6 py-3 rounded-full font-bold shadow-[0_10px_30px_rgba(255,105,0,0.4)] flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
-            >
-              <Mic size={18} />
-              进入沉浸座舱
-            </motion.button>
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 105, 0, 1)' }}
+                whileTap={{ scale: 0.95 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowImmersiveCockpit(true);
+                  setIsAutoPlay(false);
+                }}
+                className="pointer-events-auto bg-mi-orange text-white px-8 py-4 rounded-full font-bold shadow-[0_15px_40px_rgba(255,105,0,0.5)] flex items-center gap-3 border border-white/20"
+              >
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-20" />
+                  <Mic size={20} className="relative z-10" />
+                </div>
+                进入沉浸座舱 (真人数智交互)
+              </motion.button>
+            </div>
           )}
 
           <div className="absolute top-0 right-0 p-4 opacity-10"><XiaomiLogo className="w-12 h-12 grayscale" /></div>

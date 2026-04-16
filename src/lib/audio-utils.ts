@@ -77,12 +77,22 @@ export class AudioRecorder {
         pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
       }
       
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+      const uint8 = new Uint8Array(pcmData.buffer);
+      let binary = "";
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      const base64Data = btoa(binary);
       this.onAudioData(base64Data);
     };
 
     this.source.connect(this.processor);
     this.processor.connect(this.audioContext.destination);
+    
+    // Explicitly resume context for reliability
+    if (this.audioContext.state === 'suspended') {
+      await this.audioContext.resume();
+    }
   }
 
   stop() {

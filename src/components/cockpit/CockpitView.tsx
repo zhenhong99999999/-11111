@@ -21,6 +21,7 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
   const [transcription, setTranscription] = useState('');
   const [lastAiResponse, setLastAiResponse] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const audioStreamer = useRef<AudioStreamer | null>(null);
   const audioRecorder = useRef<AudioRecorder | null>(null);
@@ -49,13 +50,22 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
   }, [isDriving]);
 
   const startAiSession = async () => {
+    setErrorMessage(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("GEMINI_API_KEY is not configured. Please add it in Settings.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
-      audioStreamer.current = new AudioStreamer(24000);
+      // Initialize audio early to ensure user gesture context is captured
+      if (!audioStreamer.current) {
+        audioStreamer.current = new AudioStreamer(24000);
+      }
       await audioStreamer.current.start();
 
-      const session = ai.live.connect({
+      const sessionPromise = ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: [Modality.AUDIO],
@@ -68,6 +78,7 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
         },
         callbacks: {
           onopen: () => {
+            console.log("Live API: Connection opened");
             setIsAiActive(true);
             setAiState('listening');
             startRecording();
@@ -78,6 +89,7 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
               audioStreamer.current?.playChunk(msg.serverContent.modelTurn.parts[0].inlineData.data);
             }
             if (msg.serverContent?.interrupted) {
+              console.log("Live API: Interrupted");
               // Handle interruption
             }
             if (msg.serverContent?.turnComplete) {
@@ -90,18 +102,27 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
               setTranscription(msg.serverContent.inputAudioTranscription.text || '');
             }
           },
-          onerror: (err) => console.error("Live API Error:", err),
+          onerror: (err) => {
+            console.error("Live API Error:", err);
+            setErrorMessage("语音连接发生错误，请重试");
+          },
           onclose: () => {
+            console.log("Live API: Connection closed");
             setIsAiActive(false);
             setAiState('idle');
             stopRecording();
+            // Clear bubbles after a short delay
+            setTimeout(clearAiState, 3000);
           }
         }
       });
 
-      sessionRef.current = await session;
+      sessionRef.current = await sessionPromise;
     } catch (error) {
       console.error("Failed to start AI session", error);
+      setErrorMessage(error instanceof Error ? error.message : "无法开启语音交互，请检查麦克风权限或 API 配置");
+      setIsAiActive(false);
+      setAiState('idle');
     }
   };
 
@@ -123,10 +144,16 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
     audioRecorder.current = null;
   };
 
+  const clearAiState = () => {
+    setTranscription('');
+    setLastAiResponse('');
+  };
+
   const toggleAi = () => {
     if (isAiActive) {
       sessionRef.current?.close();
       audioStreamer.current?.stop();
+      clearAiState();
     } else {
       startAiSession();
     }
@@ -134,19 +161,43 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden z-[100] flex flex-col font-sans">
-      {/* Background Image Container - 1:1 Restoration using official SU7 Interior shot */}
-      <div className="absolute inset-0 z-0">
-        <img 
-          src="https://r.jina.ai/i/05e0ae7ecb6540d9994c9f13e1107c13" 
-          alt="Xiaomi SU7 1:1 Interior"
-          className="w-full h-full object-cover scale-[1.01]"
-          referrerPolicy="no-referrer"
-        />
-        {/* Dynamic Light Overlay */}
+      {/* Background & Ambience */}
+      <div className="absolute inset-0 z-0 select-none pointer-events-none">
+        {/* Under windshield view - simulates the road ahead */}
+        <div className="absolute inset-0 transition-opacity duration-1000">
+          <img 
+            src="https://r.jina.ai/i/05e0ae7ecb6540d9994c9f13e1107c13" 
+            alt="Xiaomi SU7 Cockpit"
+            className={cn(
+              "w-full h-full object-cover transition-all duration-1000",
+              isDriving ? "scale-105 blur-[3px] brightness-[0.7] saturate-[0.8]" : "scale-101"
+            )}
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        
+        {/* Horizon Road simulation - stretching highway lanes (abstract representation) */}
+        {isDriving && (
+          <div className="absolute inset-0 overflow-hidden opacity-30">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 w-[200%] h-full flex justify-center">
+              <div className="w-[1px] h-full bg-gradient-to-t from-white/0 via-white/20 to-white/0 -rotate-[85deg] origin-top translate-x-40" />
+              <div className="w-[1px] h-full bg-gradient-to-t from-white/0 via-white/20 to-white/0 rotate-[85deg] origin-top -translate-x-40" />
+            </div>
+          </div>
+        )}
+
+        {/* Immersive Atmospheric Overlays */}
         <div className={cn(
-          "absolute inset-0 bg-blue-500/10 mix-blend-overlay transition-opacity duration-1000",
+          "absolute inset-0 transition-opacity duration-1000 bg-gradient-to-b from-blue-900/10 via-transparent to-black/40",
           isDriving ? "opacity-100" : "opacity-0"
         )} />
+        
+        {/* Dashboard Reflection on Windshield */}
+        <div className="absolute top-[30%] inset-x-0 h-40 bg-gradient-to-t from-white/5 to-transparent blur-3xl pointer-events-none opacity-40" />
+        
+        {/* Xiaomi Orange Ambient Bleed */}
+        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-mi-orange/5 blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-1/3 h-1/3 bg-mi-orange/5 blur-[120px]" />
       </div>
 
       {/* 1:1 Instrument Cluster (Behind Steering Wheel) */}
@@ -260,206 +311,188 @@ export const CockpitView = ({ onExit }: { onExit: () => void }) => {
         </div>
       </div>
 
-      {/* Main Experience Layout */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-between py-12 px-20">
+      {/* Main Experience Layout - Optimized for Driving Sightlines */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-between pb-12 pt-16 px-6">
         
-        {/* HUD (Head-Up Display) Area */}
-        <motion.div 
-          animate={{ y: isDriving ? [0, -4, 0] : 0 }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="flex flex-col items-center gap-2 mt-12"
-        >
-          <div className="flex items-baseline gap-2">
-            <span className="text-8xl font-mono font-bold text-white tracking-tighter tabular-nums drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-              {Math.round(speed)}
-            </span>
-            <span className="text-2xl text-white/40 font-medium">km/h</span>
-          </div>
-          <div className="px-6 py-1 bg-mi-orange/20 border border-mi-orange/40 rounded-full text-mi-orange text-xs font-bold tracking-[0.2em]">
-            D GEAR
-          </div>
-        </motion.div>
-
-        {/* Central Dashboard & Controls */}
-        <div className="w-full flex justify-between items-end gap-12">
-          
-          {/* Navigation Card */}
+        {/* HUD (Head-Up Display) / Eye-Level Sightline Area */}
+        <div className="flex-1 flex flex-col items-center justify-center -mt-24 select-none">
           <motion.div 
-            initial={{ x: -50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="w-80 apple-glass p-6 rounded-[2rem]"
+            animate={isDriving ? { 
+              y: [0, -2, 0],
+              scale: [1, 1.01, 1]
+            } : {}}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className="flex flex-col items-center relative"
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-500 rounded-xl">
-                <Navigation className="w-6 h-6 text-white" />
-              </div>
-              <span className="font-bold text-white">高德地图</span>
+            {/* Active Cruise Pulse Glow */}
+            <AnimatePresence>
+              {isDriving && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: [0.1, 0.4, 0.1], scale: 1.1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="absolute inset-0 bg-green-500/20 blur-[60px] rounded-full pointer-events-none"
+                />
+              )}
+            </AnimatePresence>
+
+            <div className="flex items-baseline gap-4 relative z-10">
+              <motion.span 
+                key={Math.round(speed)}
+                initial={{ opacity: 0.8 }}
+                animate={{ opacity: 1 }}
+                className="text-[10rem] font-bold text-white tracking-tighter tabular-nums drop-shadow-[0_0_40px_rgba(255,255,255,0.2)]"
+              >
+                {Math.round(speed)}
+              </motion.span>
+              <span className="text-3xl text-white/30 font-bold uppercase tracking-widest mb-6">km/h</span>
+            </div>
+
+            <motion.div 
+              className={cn(
+                "px-8 py-1.5 rounded-full text-base font-black tracking-[0.4em] transition-all duration-700",
+                isDriving ? "bg-green-500 text-black shadow-[0_0_20px_rgba(34,197,94,0.5)]" : "bg-white/10 text-white/40"
+              )}
+            >
+              {isDriving ? "CRUISE ACTIVE" : "D GEAR"}
+            </motion.div>
+
+            {/* AI Floating Transcription within Field of View */}
+            <AnimatePresence>
+              {isAiActive && transcription && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-8 text-white/60 text-lg font-medium italic border-l-2 border-mi-orange pl-4 max-w-xl text-center"
+                >
+                  "{transcription}"
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+
+        {/* Peripheral Widgets Layout */}
+        <div className="w-full flex justify-between items-end px-4 gap-8 mb-8">
+          
+          {/* Navigation Card - Left Peripheral (Faded) */}
+          <motion.div 
+            initial={{ x: -100, opacity: 0 }}
+            animate={{ x: 0, opacity: isDriving ? 0.6 : 0.9 }}
+            className={cn(
+              "w-72 apple-glass-light p-5 rounded-[2.5rem] border border-white/5 transition-opacity",
+              isDriving && "grayscale-[0.4]"
+            )}
+          >
+            <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <Navigation className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-widest text-white/50">Navigator</span>
+               </div>
+               {/* Lane Guidance HUD Overlay Arrow */}
+               {isDriving && (
+                 <motion.div 
+                   animate={{ x: [-2, 2, -2] }}
+                   transition={{ duration: 1.5, repeat: Infinity }}
+                   className="text-mi-orange"
+                 >
+                   <ChevronLeft className="w-5 h-5 rotate-90" />
+                 </motion.div>
+               )}
             </div>
             <div className="space-y-4">
               <div className="flex flex-col">
-                <span className="text-white/40 text-xs font-medium mb-1">正在前往</span>
-                <span className="text-white font-semibold text-lg">回家 (温馨寓所)</span>
+                <span className="text-white font-black text-xl tracking-tight leading-tight">寓所 (温馨)</span>
+                <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">2.4km · 8 min</span>
               </div>
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                  <span className="text-white/80">{NAV_INSTRUCTIONS[Math.floor(speed/20) % 4]}</span>
-                </div>
+              <div className="text-xs text-blue-400 font-bold leading-tight flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                {NAV_INSTRUCTIONS[Math.floor(speed/30) % 4]}
               </div>
             </div>
           </motion.div>
 
-          {/* AI Center Orb */}
-          <div className="flex flex-col items-center gap-6">
-            <div className="relative w-32 h-32 flex items-center justify-center">
-              {/* Outer Pulse */}
-              <AnimatePresence>
-                {aiState !== 'idle' && (
-                  <motion.div 
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1.2, opacity: 0.3 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="absolute inset-0 rounded-full bg-mi-orange"
-                  />
-                )}
-              </AnimatePresence>
-
-              {/* The Orb */}
+          {/* Core Controls & Steering Context */}
+          <div className="flex flex-col items-center gap-2 flex-1 pb-4 group">
+            {/* Visual Haptic Feedback Ripple Container */}
+            <div className="relative">
               <motion.button
-                onClick={toggleAi}
+                onClick={(e) => {
+                  setIsDriving(!isDriving);
+                  // Trigger ripple
+                }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
-                  "relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-500",
-                  "shadow-[0_0_60px_rgba(255,105,0,0.1)] border border-mi-orange/20",
-                  isAiActive ? "bg-mi-orange/20" : "bg-white/5 backdrop-blur-3xl"
+                  "relative z-10 px-12 py-5 rounded-full font-black text-sm tracking-[0.2em] uppercase transition-all duration-500",
+                  isDriving 
+                    ? "bg-red-500 text-white shadow-[0_20px_50px_rgba(239,68,68,0.4)]" 
+                    : "bg-mi-orange text-white shadow-[0_15px_40px_rgba(255,105,0,0.5)]"
                 )}
               >
-                {isAiActive ? (
-                  <motion.div
-                    animate={{ scale: aiState === 'speaking' ? [1, 1.2, 1] : 1 }}
-                    transition={{ duration: 0.5, repeat: aiState === 'speaking' ? Infinity : 0 }}
-                  >
-                    <Mic className="w-10 h-10 text-mi-orange" />
-                  </motion.div>
-                ) : (
-                  <Sparkles className="w-10 h-10 text-white/30" />
-                )}
-
-                {/* Status Ring */}
-                {aiState === 'listening' && (
-                  <svg className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
-                    <circle
-                      cx="50%"
-                      cy="50%"
-                      r="48%"
-                      fill="none"
-                      stroke="rgba(255,105,0,0.4)"
-                      strokeWidth="2"
-                      strokeDasharray="300"
-                      className="animate-[spin_2s_linear_infinite]"
-                    />
-                  </svg>
-                )}
+                {isDriving ? "退出智能巡航" : "启动智能巡航"}
               </motion.button>
-
-              <div className="absolute -bottom-16 w-80 text-center space-y-2 pointer-events-none">
-                <AnimatePresence mode="wait">
-                  {isAiActive && (
-                    <motion.div
-                      key={aiState}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="text-mi-orange text-sm font-bold tracking-widest uppercase"
-                    >
-                      {aiState === 'listening' ? "小爱正在聆听..." : "小爱正在播报..."}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                {transcription && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-white/60 text-sm font-medium italic truncate px-4"
-                  >
-                    "{transcription}"
-                  </motion.div>
-                )}
-              </div>
+              
+              {/* Ripple animation on click proxy */}
+              <motion.div 
+                 animate={isDriving ? { scale: [1, 2], opacity: [0.5, 0] } : {}}
+                 className="absolute inset-0 bg-white/20 rounded-full z-0 pointer-events-none"
+              />
             </div>
-            
-            <motion.button
-              onClick={() => setIsDriving(!isDriving)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={cn(
-                "mt-20 px-10 py-4 rounded-full font-bold tracking-widest transition-all duration-500",
-                isDriving 
-                  ? "bg-red-500/20 text-red-500 border border-red-500/40" 
-                  : "bg-mi-orange text-white shadow-[0_10px_40px_rgba(255,105,0,0.4)]"
-              )}
-            >
-              {isDriving ? "停止巡航" : "启动智能巡航"}
-            </motion.button>
+
+            {/* Steering Wheel Context Outline */}
+            <div className="mt-8 relative w-80 h-16 opacity-30 pointer-events-none">
+               <svg viewBox="0 0 400 60" className="w-full h-full text-white">
+                  <path d="M10 50 Q 200 10, 390 50" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" />
+                  <circle cx="200" cy="50" r="15" fill="none" stroke="currentColor" strokeWidth="1" />
+               </svg>
+            </div>
           </div>
 
-          {/* Media Player Card */}
+          {/* Media Player - Right Peripheral (Slim Bar) */}
           <motion.div 
-            initial={{ x: 50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="w-80 apple-glass p-6 rounded-[2rem]"
+            initial={{ x: 100, opacity: 0 }}
+            animate={{ x: 0, opacity: isDriving ? 0.4 : 0.8 }}
+            className={cn(
+              "w-72 apple-glass-light px-4 py-3 rounded-2xl border border-white/5 flex items-center gap-4 transition-all overflow-hidden",
+              isDriving && "scale-95"
+            )}
           >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-mi-orange rounded-xl">
-                <Music className="w-6 h-6 text-white" />
-              </div>
-              <span className="font-bold text-white">媒体中心</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-mi-orange/40 to-black border border-white/10 flex items-center justify-center shrink-0">
+               <Music className="w-5 h-5 text-mi-orange" />
             </div>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-mi-orange to-purple-600 flex items-center justify-center">
-                <Play fill="white" className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white font-bold truncate">人车合一 - 巡航曲</span>
-                <span className="text-white/40 text-xs">SU7 智能音乐推荐</span>
-              </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] text-white/30 font-black uppercase tracking-widest mb-0.5">Media Player</div>
+              <div className="text-xs text-white font-bold truncate">人车合一 - 巡航曲</div>
             </div>
-            <div className="flex items-center justify-between">
-              <ChevronLeft className="w-6 h-6 text-white/20" />
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <Pause className="w-5 h-5 text-white" />
-              </div>
-              <ChevronLeft className="w-6 h-6 text-white/20 rotate-180" />
-              <Volume2 className="w-5 h-5 text-white/40" />
+            <div className="flex items-center gap-2">
+               <motion.button whileTap={{ scale: 0.8 }}><Play size={14} className="text-white/60 fill-current" /></motion.button>
+               <motion.button whileTap={{ scale: 0.8 }}><Volume2 size={14} className="text-white/40" /></motion.button>
             </div>
           </motion.div>
-
         </div>
 
-        {/* Console Controls Area */}
-        <div className="w-3/5 flex justify-center gap-8 mt-4">
-           {[
-             { icon: Mic, label: '语音' },
-             { icon: Music, label: '音乐' },
-             { icon: Navigation, label: '导航' },
-             { icon: Settings, label: '设置' },
-             { icon: PhoneOff, label: '紧急' }
-           ].map((btn, i) => (
-             <motion.button
-               key={i}
-               whileHover={{ y: -4, backgroundColor: 'rgba(255,255,255,0.1)' }}
-               className="flex flex-col items-center gap-2 p-4 rounded-3xl transition-all"
-             >
-               <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center">
-                 <btn.icon className="w-6 h-6 text-white/60" />
-               </div>
-               <span className="text-[10px] text-white/40 uppercase tracking-tighter font-bold">{btn.label}</span>
-             </motion.button>
-           ))}
+        {/* AI Assistant Center Mini Orb - Minimalist in cockpit mode */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-30">
+          <motion.button
+            onClick={toggleAi}
+            animate={{ 
+              scale: isAiActive ? [1, 1.1, 1] : 1,
+              opacity: isDriving ? 0.3 : 0.8
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className={cn(
+              "w-12 h-12 rounded-full flex items-center justify-center transition-all",
+              isAiActive ? "bg-mi-orange shadow-[0_0_30px_#FF6900]" : "bg-white/10 backdrop-blur-xl border border-white/10"
+            )}
+          >
+            <Sparkles className={cn("w-5 h-5", isAiActive ? "text-white" : "text-white/40")} />
+          </motion.button>
         </div>
-
       </div>
 
       {/* Interruption Overlay when AI is speaking */}
